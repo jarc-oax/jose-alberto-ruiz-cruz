@@ -5,6 +5,7 @@
 - php 8.3
 - composer 2.7.7
 - mysql 8.0.39
+- Laravel Framework 11.20.0
 
 ## Instrucciones:
 
