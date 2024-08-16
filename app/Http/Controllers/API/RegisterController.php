@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\API\BaseController as BaseController;
 use App\Models\User;
+
    
 class RegisterController extends BaseController
 {

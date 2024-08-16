@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\API\BaseController as BaseController;
 use App\Models\CatalogProduct as Product;
 use App\Http\Resources\CatalogProductResource as ProductResource;
+use App\Jobs\InsertBatchProducts;
+use App\Jobs\UpdateBatchProducts;
+use App\Jobs\DeleteBatchProducts;
 
 class CatalogProductController extends BaseController
 {
@@ -58,12 +61,6 @@ class CatalogProductController extends BaseController
         }
     }
 
-    /**
-     * Store a batch of products in the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function insertBatch(Request $request): JsonResponse
     {
         $input = $request->all();
@@ -80,21 +77,10 @@ class CatalogProductController extends BaseController
             return $this->sendError('Validation Error.', $validator->errors(), 400);
         }
     
-        DB::beginTransaction();
+        // Dispatch the job to handle batch insertion
+        InsertBatchProducts::dispatch($input);
     
-        try {
-            $products = [];
-            foreach ($input as $productData) {
-                $products[] = Product::create($productData);
-            }
-    
-            DB::commit();
-    
-            return $this->sendResponse(ProductResource::collection($products), 'Products created successfully.', 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->sendError('Error creating products.', ['details' => $e->getMessage()], 500);
-        }
+        return $this->sendResponse([], 'Batch product creation is in progress.', 202);
     }
    
     /**
@@ -186,7 +172,6 @@ class CatalogProductController extends BaseController
      */
     public function updateBatch(Request $request): JsonResponse
     {
-        // Validate the incoming request data
         $validatedData = $request->validate([
             '*.id' => 'required|integer|exists:catalog_products,id',
             '*.name' => 'string',
@@ -195,40 +180,11 @@ class CatalogProductController extends BaseController
             '*.length' => 'numeric|min:0',
             '*.width' => 'numeric|min:0',
         ]);
-
-        try {
-            DB::beginTransaction();
-
-            foreach ($validatedData as $data) {
-                $dataToUpdate = [];
-                if (isset($data['name'])) {
-                    $dataToUpdate['name'] = $data['name'];
-                }
-                if (isset($data['description'])) {
-                    $dataToUpdate['description'] = $data['description'];
-                }
-                if (isset($data['height'])) {
-                    $dataToUpdate['height'] = $data['height'];
-                }
-                if (isset($data['length'])) {
-                    $dataToUpdate['length'] = $data['length'];
-                }
-                if (isset($data['width'])) {
-                    $dataToUpdate['width'] = $data['width'];
-                }
-
-                DB::table('catalog_products')
-                    ->where('id', $data['id'])
-                    ->update($dataToUpdate);
-            }
-
-            DB::commit();
-
-            return response()->json(['message' => 'Records updated successfully'], 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => 'Error updating records', 'details' => $e->getMessage()], 500);
-        }
+    
+        // Dispatch the job to handle batch updates
+        UpdateBatchProducts::dispatch($validatedData);
+    
+        return response()->json(['message' => 'Batch product update is in progress.'], 202);
     }
    
     /**
@@ -263,16 +219,10 @@ class CatalogProductController extends BaseController
             'ids' => 'required|array',
             'ids.*' => 'integer|exists:catalog_products,id',
         ]);
-
-        try {
-            DB::beginTransaction();
-            DB::table('catalog_products')->whereIn('id', $validatedData['ids'])->delete();
-            DB::commit();
-
-            return response()->json(['message' => 'Records deleted successfully'], 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => 'Error deleting records', 'details' => $e->getMessage()], 500);
-        }
+    
+        // Dispatch the job to handle batch deletion
+        DeleteBatchProducts::dispatch($validatedData['ids']);
+    
+        return response()->json(['message' => 'Batch product deletion is in progress.'], 202);
     }
 }
