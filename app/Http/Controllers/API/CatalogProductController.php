@@ -1,21 +1,21 @@
 <?php
-   
+
 namespace App\Http\Controllers\API;
-   
+
 use Illuminate\Http\Request;
-use App\Http\Controllers\API\BaseController as BaseController;
-use App\Models\CatalogProduct as Product;
 use Illuminate\Support\Facades\Validator;
-use App\Http\Resources\CatalogProductResource as ProductResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-   
+use App\Http\Controllers\API\BaseController as BaseController;
+use App\Models\CatalogProduct as Product;
+use App\Http\Resources\CatalogProductResource as ProductResource;
+
 class CatalogProductController extends BaseController
 {
     /**
-     * Display a listing of the resource.
+     * Display a listing of all products.
      *
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index(): JsonResponse
     {
@@ -25,15 +25,15 @@ class CatalogProductController extends BaseController
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created product in the database.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request): JsonResponse
     {
         $input = $request->all();
-   
+    
         $validator = Validator::make($input, [
             'name' => 'required',
             'description' => 'required',
@@ -41,26 +41,33 @@ class CatalogProductController extends BaseController
             'length' => 'required|numeric|min:0',
             'width' => 'required|numeric|min:0',
         ]);
-   
-        if($validator->fails()){
-            return $this->sendError('Validation Error.', $validator->errors(), 400);       
+    
+        if ($validator->fails()) {
+            return $this->sendError('Validation Error.', $validator->errors(), 400);
         }
-   
-        $product = Product::create($input);
-   
-        return $this->sendResponse(new ProductResource($product), 'Product created successfully.', 201);
+    
+        DB::beginTransaction();
+    
+        try {
+            $product = Product::create($input);
+            DB::commit();
+            return $this->sendResponse(new ProductResource($product), 'Product created successfully.', 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Error creating product.', ['details' => $e->getMessage()], 500);
+        }
     }
 
     /**
-     * Store a batch of products.
+     * Store a batch of products in the database.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function insertBatch(Request $request): JsonResponse
     {
         $input = $request->all();
-   
+    
         $validator = Validator::make($input, [
             '*.name' => 'required',
             '*.description' => 'required',
@@ -68,24 +75,33 @@ class CatalogProductController extends BaseController
             '*.length' => 'required|numeric|min:0',
             '*.width' => 'required|numeric|min:0',
         ]);
-   
-        if($validator->fails()){
-            return $this->sendError('Validation Error.', $validator->errors(), 400);       
+    
+        if ($validator->fails()) {
+            return $this->sendError('Validation Error.', $validator->errors(), 400);
         }
-   
-        $products = [];
-        foreach ($input as $product) {
-            $products[] = Product::create($product);
+    
+        DB::beginTransaction();
+    
+        try {
+            $products = [];
+            foreach ($input as $productData) {
+                $products[] = Product::create($productData);
+            }
+    
+            DB::commit();
+    
+            return $this->sendResponse(ProductResource::collection($products), 'Products created successfully.', 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Error creating products.', ['details' => $e->getMessage()], 500);
         }
-   
-        return $this->sendResponse(ProductResource::collection($products), 'Products created successfully.', 201);
-    }   
+    }
    
     /**
-     * Display the specified resource.
+     * Display the specified product.
      *
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function show($id): JsonResponse
     {
@@ -99,27 +115,29 @@ class CatalogProductController extends BaseController
     }
 
     /**
-     * Display a batch of catalog products
+     * Display a batch of products by their IDs.
      *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function showBatch(Request $request)
+    public function showBatch(Request $request): JsonResponse
     {
         $validatedData = $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'integer|exists:catalog_products,id',
         ]);
 
-        $registros = Product::whereIn('id', $validatedData['ids'])->get();
+        $products = Product::whereIn('id', $validatedData['ids'])->get();
 
-        return response()->json($registros, 200);
+        return response()->json($products, 200);
     }
     
     /**
-     * Update the specified resource in storage.
+     * Update the specified product in the database.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JsonResponse
      */
     public function update(Request $request, $id): JsonResponse
     {
@@ -131,30 +149,44 @@ class CatalogProductController extends BaseController
             'length' => 'numeric|min:0',
             'width' => 'numeric|min:0',
         ]);
-   
-        if($validator->fails()){
+    
+        if ($validator->fails()) {
             return $this->sendError('Validation Error.', $validator->errors());
         }
-
+    
         $product = Product::find($id);
-
+    
         if ($product == null) {
-            return $this->sendError('Validation Error.', ["The product doesn't exist."], 400); 
+            return $this->sendError('Validation Error.', ["The product doesn't exist."], 400);
         }
-   
-        $product->name = $input['name'] ?? $product->name;
-        $product->description = $input['description'] ?? $product->description;
-        $product->height = $input['height'] ?? $product->height;
-        $product->length = $input['length'] ?? $product->length;
-        $product->width = $input['width'] ?? $product->width;
-        $product->save();
-   
-        return $this->sendResponse(new ProductResource($product), 'Product updated successfully.');
+    
+        DB::beginTransaction();
+    
+        try {
+            $product->name = $input['name'] ?? $product->name;
+            $product->description = $input['description'] ?? $product->description;
+            $product->height = $input['height'] ?? $product->height;
+            $product->length = $input['length'] ?? $product->length;
+            $product->width = $input['width'] ?? $product->width;
+            $product->save();
+    
+            DB::commit();
+            return $this->sendResponse(new ProductResource($product), 'Product updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Error updating product.', ['details' => $e->getMessage()], 500);
+        }
     }
 
-    public function updateBatch(Request $request)
+    /**
+     * Update a batch of products in the database.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateBatch(Request $request): JsonResponse
     {
-        // Validar los datos recibidos
+        // Validate the incoming request data
         $validatedData = $request->validate([
             '*.id' => 'required|integer|exists:catalog_products,id',
             '*.name' => 'string',
@@ -192,27 +224,40 @@ class CatalogProductController extends BaseController
 
             DB::commit();
 
-            return response()->json(['message' => 'Registros actualizados con éxito'], 200);
+            return response()->json(['message' => 'Records updated successfully'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al actualizar los registros', 'details' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error updating records', 'details' => $e->getMessage()], 500);
         }
     }
    
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified product from storage.
      *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @param  \App\Models\CatalogProduct  $product
+     * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(Product $product): JsonResponse
     {
-        $product->delete();
-   
-        return $this->sendResponse([], 'Product deleted successfully.');
+        DB::beginTransaction();
+    
+        try {
+            $product->delete();
+            DB::commit();
+            return $this->sendResponse([], 'Product deleted successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Error deleting product.', ['details' => $e->getMessage()], 500);
+        }
     }
 
-    public function deleteBatch(Request $request)
+    /**
+     * Remove a batch of products from storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteBatch(Request $request): JsonResponse
     {
         $validatedData = $request->validate([
             'ids' => 'required|array',
@@ -220,15 +265,14 @@ class CatalogProductController extends BaseController
         ]);
 
         try {
-
             DB::beginTransaction();
             DB::table('catalog_products')->whereIn('id', $validatedData['ids'])->delete();
             DB::commit();
 
-            return response()->json(['message' => 'Registros eliminados con éxito'], 200);
+            return response()->json(['message' => 'Records deleted successfully'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al eliminar los registros', 'details' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error deleting records', 'details' => $e->getMessage()], 500);
         }
     }
 }
