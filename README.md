@@ -37,7 +37,7 @@
 
 La estructura de la colección es la siguiente:
 
-![image.png](Prueba%20te%CC%81cnica%20de%20Jose%CC%81%20Alberto%20Ruiz%20Cruz%202c0d020e02e84312967b418dd44f0936/image.png)
+![image.png](public/postman_collection.png)
 
 ### Carpeta login:
 
