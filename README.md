@@ -14,11 +14,11 @@
     - composer install
 - Cambiar las credenciales de mysql en el archivo .env a las de tu entorno de desarrollo, justo en estas lineas:
     
-    **DB_CONNECTION=**mysql
+    **DB_CONNECTION=mysql**
     
-    **DB_HOST=**127.0.0.1
+    **DB_HOST=127.0.0.1**
     
-    **DB_PORT=**3306
+    **DB_PORT=3306**
     
     **DB_DATABASE=your_database**
     
