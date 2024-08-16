@@ -29,6 +29,7 @@ class DeleteBatchProducts implements ShouldQueue
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
+            // TODO: Handle exception
             throw $e;
         }
     }

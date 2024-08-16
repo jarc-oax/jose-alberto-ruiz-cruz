@@ -32,7 +32,7 @@ class InsertBatchProducts implements ShouldQueue
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            // Puedes manejar la excepción aquí si lo deseas
+            // TODO: Handle exception
             throw $e;
         }
     }
