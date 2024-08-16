@@ -17,4 +17,6 @@ class CatalogProduct extends Model
     protected $fillable = [
         'name', 'description', 'height', 'length', 'width'
     ];
+
+    
 }
